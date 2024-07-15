@@ -1,2 +1,4 @@
 performance_*.json
 z_score_sma.log*
+cryptoquant-exchange-inflow-log-extraction.log*
+*.csv
