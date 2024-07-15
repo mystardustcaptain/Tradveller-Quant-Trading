@@ -18,14 +18,15 @@ import colorlog
 import math
 
 
-RUNTIME_MODE = RuntimeMode.Live
+RUNTIME_MODE = RuntimeMode.Backtest
+EXCHANGE = Exchange.BybitLinear
 
 class Strategy(BaseStrategy):
     symbol = [Symbol(base="BTC", quote="USDT")]
-    quantity = 0.001
-    hedge_mode = True
-    sma_length = 50
-    z_score_threshold = 0.75
+    quantity = 5
+    hedge_mode = False
+    sma_length = 2
+    z_score_threshold = 0.1
 
     async def set_param(self, identifier, value):
         logging.info(f"Setting {identifier} to {value}")
@@ -39,21 +40,6 @@ class Strategy(BaseStrategy):
     def convert_ms_to_datetime(self, milliseconds):
         seconds = milliseconds / 1000.0
         return datetime.fromtimestamp(seconds)
-
-    def get_mean(self, array):
-        total = 0
-        for i in range(0, len(array)):
-            total += array[i]
-        return total / len(array)
-
-    def get_stddev(self, array):
-        total = 0
-        mean = self.get_mean(array)
-        for i in range(0, len(array)):
-            minus_mean = math.pow(array[i] - mean, 2)
-            total += minus_mean
-
-        return math.sqrt(total / (len(array) - 1))
 
     def __init__(self):
         handler = colorlog.StreamHandler()
@@ -75,26 +61,27 @@ class Strategy(BaseStrategy):
         sma_forty = talib.SMA(close, self.sma_length)
         # logging.info(f"close: {close[-1]}, sma_forty: {sma_forty} ")
         # price_changes = (float(close[-1]) / sma_forty[-1]) - 1.0
-        std = self.get_stddev(close[-50:])
-        z_score = (close[-1] - sma_forty[-1]) / std
 
-        current_pos = await strategy.position(exchange=Exchange.BybitLinear,symbol=symbol)
+        std = talib.STDDEV(close, self.sma_length) * math.sqrt(self.sma_length / (self.sma_length - 1))
+        z_score = (close[-1] - sma_forty[-1]) / std[-1]
+
+        current_pos = await strategy.position(exchange=EXCHANGE,symbol=symbol)
         logging.info(f"close: {close[-1]}, sma: {sma_forty[-1]}, std: {std}, z_score: {z_score}, current_pos: {current_pos} at {self.convert_ms_to_datetime(start_time[-1])}")
 
         if z_score > self.z_score_threshold:
             if current_pos.long.quantity == 0.0:
                 try:
-                    await strategy.open(exchange=Exchange.BybitLinear,side=OrderSide.Buy, quantity=self.quantity, symbol=symbol, limit=None, take_profit=None, stop_loss=None, is_hedge_mode=self.hedge_mode, is_post_only=False)
+                    await strategy.open(exchange=EXCHANGE,side=OrderSide.Buy, quantity=self.quantity, symbol=symbol, limit=None, take_profit=None, stop_loss=None, is_hedge_mode=self.hedge_mode, is_post_only=False)
                 except Exception as e:
                     logging.error(f"Failed to open long: {e}")
         else:
             if current_pos.long.quantity != 0.0:
                 try:
-                    await strategy.close(exchange=Exchange.BybitLinear, side=OrderSide.Buy, quantity=self.quantity, symbol=symbol, is_hedge_mode=self.hedge_mode)
+                    await strategy.close(exchange=EXCHANGE, side=OrderSide.Buy, quantity=self.quantity, symbol=symbol, is_hedge_mode=self.hedge_mode)
                 except Exception as e:
                     logging.error(f"Failed to close entire position: {e}")
         
-        new_pos = await strategy.position(exchange= Exchange.BybitLinear, symbol=symbol)
+        new_pos = await strategy.position(exchange= EXCHANGE, symbol=symbol)
         logging.info(f"new_pos: {new_pos}")
 
 
@@ -105,17 +92,18 @@ config = RuntimeConfig(
     active_order_interval=1,
     initial_capital=10000.0,
     exchange_keys="./credentials.json",
-    start_time=datetime(2022, 6, 11, 0, 0, 0, tzinfo=timezone.utc),
-    end_time=datetime(2024, 1, 5, 0, 0, 0, tzinfo=timezone.utc),
+    start_time=datetime(2020, 5, 11, 0, 0, 0, tzinfo=timezone.utc),
+    end_time=datetime(2024, 4, 15, 0, 0, 0, tzinfo=timezone.utc),
     data_count=150,
     api_key="test",
     api_secret="notest",
 )
 
 permutation = Permutation(config)
+
 hyper_parameters = {}
-hyper_parameters["sma"] = [50]
-hyper_parameters["z_score"] = [0.75]
+hyper_parameters["sma"] = [83]
+hyper_parameters["z_score"] = [0.93]
 # hyper_parameters["sma"] = np.arange(10,60,10)
 # hyper_parameters["z_score"] = np.arange(0.7,0.8,0.01)
 
