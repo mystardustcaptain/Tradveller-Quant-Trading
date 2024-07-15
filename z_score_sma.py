@@ -20,9 +20,12 @@ import math
 
 RUNTIME_MODE = RuntimeMode.Backtest
 EXCHANGE = Exchange.BybitLinear
+EXCHANGE_TOPIC = "bybit"
+TIMEFRAME = "1d"
+CRYPTO_SYMBOL = "BTC"
 
 class Strategy(BaseStrategy):
-    symbol = [Symbol(base="BTC", quote="USDT")]
+    # symbol = [Symbol(base="BTC", quote="USDT")]
     quantity = 5
     hedge_mode = False
     sma_length = 2
@@ -30,12 +33,14 @@ class Strategy(BaseStrategy):
 
     async def set_param(self, identifier, value):
         logging.info(f"Setting {identifier} to {value}")
-        if identifier == "sma":
-            self.sma_length = float(value)
-        elif identifier == "z_score":
-            self.z_score_threshold = float(value)
-        else:
-            logging.error(f"Could not set {identifier}, not found")
+        
+        match identifier:
+            case "sma":
+                self.sma_length = float(value)
+            case "z_score":
+                self.z_score_threshold = float(value)
+            case _:
+                logging.error(f"Could not set {identifier}, not found")
 
     def convert_ms_to_datetime(self, milliseconds):
         seconds = milliseconds / 1000.0
@@ -88,7 +93,7 @@ class Strategy(BaseStrategy):
 config = RuntimeConfig(
     mode=RUNTIME_MODE,
     datasource_topics=[],
-    candle_topics=["candles-1d-BTC/USDT-bybit"],
+    candle_topics=[f"candles-{TIMEFRAME}-{CRYPTO_SYMBOL}/USDT-{EXCHANGE_TOPIC}"],
     active_order_interval=1,
     initial_capital=10000.0,
     exchange_keys="./credentials.json",
@@ -104,8 +109,8 @@ permutation = Permutation(config)
 hyper_parameters = {}
 hyper_parameters["sma"] = [83]
 hyper_parameters["z_score"] = [0.93]
-# hyper_parameters["sma"] = np.arange(10,60,10)
-# hyper_parameters["z_score"] = np.arange(0.7,0.8,0.01)
+# hyper_parameters["sma"] = np.arange(10,100,5)
+# hyper_parameters["z_score"] = np.arange(0.1,1.0,0.05)
 
 
 async def start():
